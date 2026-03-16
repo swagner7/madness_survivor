@@ -2,6 +2,7 @@ README.md
 pyproject.toml
 madness_survivor/__init__.py
 madness_survivor/cli.py
+madness_survivor/field_simulator.py
 madness_survivor/io_utils.py
 madness_survivor/logger.py
 madness_survivor/models.py
