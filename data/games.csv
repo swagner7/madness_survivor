@@ -1,0 +1,11 @@
+game_id,day,team1,team2,winner
+R64_G1,1,Houston,Longwood,
+R64_G2,1,Nebraska,Texas A&M,
+R64_G3,2,Duke,Vermont,
+R64_G4,2,James Madison,Wisconsin,
+R32_G1,3,W:R64_G1,W:R64_G2,
+R32_G2,4,W:R64_G3,W:R64_G4,
+S16_G1,5,W:R32_G1,W:R32_G2,
+E8_G1,7,W:S16_G1,Houston,
+F4_G1,9,W:E8_G1,Duke,
+CH_G1,10,W:F4_G1,Nebraska,

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "madness-survivor"
+version = "0.1.0"
+description = "March Madness survivor contest simulator using KenPom-style ratings"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0.0"
+]
+
+[project.scripts]
+madness-survivor = "madness_survivor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
