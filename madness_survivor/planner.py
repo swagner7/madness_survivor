@@ -6,6 +6,8 @@ from typing import Dict, List, Set, Tuple
 
 from .models import Team
 from .simulator import SimulationSummary
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass(order=True)
@@ -40,8 +42,10 @@ def build_survivor_plan(
             used=set(used_teams),
         )
     ]
-
+    
+    logger.info("Starting survivor plan optimization")
     for day in range(start_day, max_day + 1):
+        logger.info("Planning picks for contest day %d", day)
         probs = summary.win_prob_by_day.get(day, {})
         ranked_candidates = sorted(
             ((team, p) for team, p in probs.items() if p > min_prob),
@@ -83,6 +87,7 @@ def build_survivor_plan(
         beam = new_beam[:beam_width]
 
     beam.sort(reverse=True)
+    logger.info("Planning complete. Best plans generated: %d", len(beam))
     return beam
 
 

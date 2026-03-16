@@ -5,9 +5,11 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+import logging
 
 from .models import Game, Team
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class SimulationSummary:
@@ -49,7 +51,9 @@ def simulate_once(
     for game in games:
         t1 = resolve_team(game.team1, winners)
         t2 = resolve_team(game.team2, winners)
-
+        logger.debug(
+            "Game %s | Day %d | %s vs %s", game.game_id, game.day, t1, t2
+        )
         if t1 is None or t2 is None:
             raise ValueError(
                 f"Game {game.game_id} could not resolve participants. "
@@ -74,6 +78,7 @@ def simulate_once(
 
         winners[game.game_id] = winner
         day_winners[game.day].append(winner)
+        logger.debug("Winner: %s", winner)
 
     return winners, day_winners, day_appearances
 
@@ -85,6 +90,11 @@ def run_simulations(
     seed: int = 42,
     scale: float = 11.0,
 ) -> SimulationSummary:
+    logger.info("Starting Monte Carlo simulations")
+    logger.info("Total simulations: %d", n_sims)
+    logger.info("Teams loaded: %d", len(teams))
+    logger.info("Games loaded: %d", len(games))
+
     rng = random.Random(seed)
 
     max_day = max(game.day for game in games)
@@ -99,20 +109,28 @@ def run_simulations(
 
     final_day = max_day
 
-    for _ in range(n_sims):
-        _, day_winners, day_appearances = simulate_once(teams, games, rng, scale=scale)
+    progress_interval = max(1, n_sims // 10)
+
+    for sim_idx in range(n_sims):
+        if sim_idx % progress_interval == 0:
+            logger.info("Simulation progress: %d / %d", sim_idx, n_sims)
+
+        _, day_winners, day_appearances = simulate_once(
+            teams, games, rng, scale=scale
+        )
 
         for day, winners in day_winners.items():
             for team in winners:
                 day_win_counts[day][team] += 1
 
         for day, appearing_teams in day_appearances.items():
-            # dedupe in case input accidentally duplicates a team on same day
             for team in set(appearing_teams):
                 day_appearance_counts[day][team] += 1
 
         for champ in day_winners.get(final_day, []):
             championship_counts[champ] += 1
+
+    logger.info("Simulations completed")
 
     win_prob_by_day: Dict[int, Dict[str, float]] = {}
     appearance_prob_by_day: Dict[int, Dict[str, float]] = {}
@@ -129,6 +147,8 @@ def run_simulations(
     championship_prob = {
         team: championship_counts[team] / n_sims for team in teams
     }
+
+    logger.info("Probability calculations completed")
 
     return SimulationSummary(
         win_prob_by_day=win_prob_by_day,
