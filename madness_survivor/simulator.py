@@ -19,6 +19,7 @@ class SimulationSummary:
     championship_prob: Dict[str, float]
     total_sims: int
     team_day_win_sim_masks: Dict[int, Dict[str, int]]
+    team_day_appearance_sim_masks: Dict[int, Dict[str, int]]
 
 
 def logistic_win_prob(rating_a: float, rating_b: float, scale: float = 11.0) -> float:
@@ -110,10 +111,10 @@ def run_simulations(
     }
     championship_counts: Dict[str, int] = defaultdict(int)
 
-    # For path-consistent planning:
-    # team_day_win_sim_masks[day][team] is a bitmask over simulation indices
-    # indicating which simulations had that team winning on that contest day.
     team_day_win_sim_masks_raw: Dict[int, Dict[str, int]] = {
+        day: defaultdict(int) for day in range(1, max_day + 1)
+    }
+    team_day_appearance_sim_masks_raw: Dict[int, Dict[str, int]] = {
         day: defaultdict(int) for day in range(1, max_day + 1)
     }
 
@@ -141,6 +142,7 @@ def run_simulations(
         for day, appearing_teams in day_appearances.items():
             for team in set(appearing_teams):
                 day_appearance_counts[day][team] += 1
+                team_day_appearance_sim_masks_raw[day][team] |= sim_bit
 
         for champ in day_winners.get(final_day, []):
             championship_counts[champ] += 1
@@ -152,6 +154,7 @@ def run_simulations(
 
     for day in range(1, max_day + 1):
         all_day_teams = set(day_win_counts[day]) | set(day_appearance_counts[day])
+
         win_prob_by_day[day] = {
             team: day_win_counts[day][team] / n_sims for team in all_day_teams
         }
@@ -166,6 +169,9 @@ def run_simulations(
     team_day_win_sim_masks = {
         day: dict(team_masks) for day, team_masks in team_day_win_sim_masks_raw.items()
     }
+    team_day_appearance_sim_masks = {
+        day: dict(team_masks) for day, team_masks in team_day_appearance_sim_masks_raw.items()
+    }
 
     logger.info("Probability calculations completed")
 
@@ -175,4 +181,5 @@ def run_simulations(
         championship_prob=championship_prob,
         total_sims=n_sims,
         team_day_win_sim_masks=team_day_win_sim_masks,
+        team_day_appearance_sim_masks=team_day_appearance_sim_masks,
     )
