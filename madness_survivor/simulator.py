@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import logging
 import math
 import random
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
-import logging
 
 from .models import Game, Team
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class SimulationSummary:
@@ -17,6 +18,7 @@ class SimulationSummary:
     appearance_prob_by_day: Dict[int, Dict[str, float]]
     championship_prob: Dict[str, float]
     total_sims: int
+    team_day_win_sim_masks: Dict[int, Dict[str, int]]
 
 
 def logistic_win_prob(rating_a: float, rating_b: float, scale: float = 11.0) -> float:
@@ -51,9 +53,7 @@ def simulate_once(
     for game in games:
         t1 = resolve_team(game.team1, winners)
         t2 = resolve_team(game.team2, winners)
-        logger.debug(
-            "Game %s | Day %d | %s vs %s", game.game_id, game.day, t1, t2
-        )
+
         if t1 is None or t2 is None:
             raise ValueError(
                 f"Game {game.game_id} could not resolve participants. "
@@ -62,6 +62,8 @@ def simulate_once(
 
         if t1 not in teams or t2 not in teams:
             raise ValueError(f"Unknown team in game {game.game_id}: {t1} vs {t2}")
+
+        logger.debug("Game %s | Day %d | %s vs %s", game.game_id, game.day, t1, t2)
 
         day_appearances[game.day].append(t1)
         day_appearances[game.day].append(t2)
@@ -76,9 +78,10 @@ def simulate_once(
             p_t1 = logistic_win_prob(teams[t1].rating, teams[t2].rating, scale=scale)
             winner = t1 if rng.random() < p_t1 else t2
 
+        logger.debug("Winner: %s", winner)
+
         winners[game.game_id] = winner
         day_winners[game.day].append(winner)
-        logger.debug("Winner: %s", winner)
 
     return winners, day_winners, day_appearances
 
@@ -107,8 +110,14 @@ def run_simulations(
     }
     championship_counts: Dict[str, int] = defaultdict(int)
 
-    final_day = max_day
+    # For path-consistent planning:
+    # team_day_win_sim_masks[day][team] is a bitmask over simulation indices
+    # indicating which simulations had that team winning on that contest day.
+    team_day_win_sim_masks_raw: Dict[int, Dict[str, int]] = {
+        day: defaultdict(int) for day in range(1, max_day + 1)
+    }
 
+    final_day = max_day
     progress_interval = max(1, n_sims // 10)
 
     for sim_idx in range(n_sims):
@@ -116,12 +125,18 @@ def run_simulations(
             logger.info("Simulation progress: %d / %d", sim_idx, n_sims)
 
         _, day_winners, day_appearances = simulate_once(
-            teams, games, rng, scale=scale
+            teams=teams,
+            games=games,
+            rng=rng,
+            scale=scale,
         )
+
+        sim_bit = 1 << sim_idx
 
         for day, winners in day_winners.items():
             for team in winners:
                 day_win_counts[day][team] += 1
+                team_day_win_sim_masks_raw[day][team] |= sim_bit
 
         for day, appearing_teams in day_appearances.items():
             for team in set(appearing_teams):
@@ -148,6 +163,10 @@ def run_simulations(
         team: championship_counts[team] / n_sims for team in teams
     }
 
+    team_day_win_sim_masks = {
+        day: dict(team_masks) for day, team_masks in team_day_win_sim_masks_raw.items()
+    }
+
     logger.info("Probability calculations completed")
 
     return SimulationSummary(
@@ -155,4 +174,5 @@ def run_simulations(
         appearance_prob_by_day=appearance_prob_by_day,
         championship_prob=championship_prob,
         total_sims=n_sims,
+        team_day_win_sim_masks=team_day_win_sim_masks,
     )
