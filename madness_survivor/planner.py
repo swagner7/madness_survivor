@@ -16,8 +16,18 @@ class PlanCandidate:
     sort_key: Tuple[float, float] = field(init=False, repr=False)
     log_survival_score: float
     seed_sum: int
-    # (day, team, reach_day_prob, game_win_if_available, pick_success_prob, cumulative_survival)
-    picks: List[Tuple[int, str, float, float, float, float]]
+    # (
+    #   day,
+    #   team,
+    #   reach_day_prob,
+    #   game_win_if_available,
+    #   pick_success_prob,
+    #   cumulative_survival,
+    #   support_sims,
+    #   reachable_sims,
+    #   next_support_sims,
+    # )
+    picks: List[Tuple[int, str, float, float, float, float, int, int, int]]
     used: Set[str] = field(compare=False)
     alive_sim_mask: int = field(compare=False, repr=False)
     surviving_sim_count: int = field(compare=False)
@@ -69,7 +79,7 @@ def build_survivor_plan(
             if plan.surviving_sim_count == 0:
                 continue
 
-            candidate_rows: List[Tuple[str, float, float, float, float, int, int]] = []
+            candidate_rows: List[Tuple[str, float, float, float, float, int, int, int]] = []
 
             for team, team_win_mask in day_team_win_masks.items():
                 if team in plan.used:
@@ -79,6 +89,7 @@ def build_survivor_plan(
                 if team_appearance_mask == 0:
                     continue
 
+                support_sims = plan.surviving_sim_count
                 reachable_mask = plan.alive_sim_mask & team_appearance_mask
                 reachable_count = reachable_mask.bit_count()
                 if reachable_count == 0:
@@ -89,9 +100,9 @@ def build_survivor_plan(
                 if next_count == 0:
                     continue
 
-                reach_day_prob = reachable_count / plan.surviving_sim_count
+                reach_day_prob = reachable_count / support_sims
                 game_win_if_available = next_count / reachable_count
-                pick_success_prob = next_count / plan.surviving_sim_count
+                pick_success_prob = next_count / support_sims
                 cumulative_survival = next_count / summary.total_sims
 
                 if pick_success_prob < min_prob:
@@ -104,6 +115,7 @@ def build_survivor_plan(
                         game_win_if_available,
                         pick_success_prob,
                         cumulative_survival,
+                        reachable_count,
                         next_count,
                         next_alive_mask,
                     )
@@ -121,6 +133,7 @@ def build_survivor_plan(
                 game_win_if_available,
                 pick_success_prob,
                 cumulative_survival,
+                reachable_count,
                 next_count,
                 next_alive_mask,
             ) in candidate_rows:
@@ -135,6 +148,9 @@ def build_survivor_plan(
                         game_win_if_available,
                         pick_success_prob,
                         cumulative_survival,
+                        plan.surviving_sim_count,
+                        reachable_count,
+                        next_count,
                     )
                 ]
 
@@ -171,7 +187,7 @@ def summarize_first_pick_options(
     for plan in plans:
         if not plan.picks:
             continue
-        _, team, _, _, _, _ = plan.picks[0]
+        _, team, _, _, _, _, _, _, _ = plan.picks[0]
         candidate = (plan.log_survival_score, plan.seed_sum)
         current = first_pick_best.get(team)
         if current is None or candidate > current:
@@ -199,7 +215,7 @@ def format_plan_table(
     survival_estimate = best.picks[-1][5] if best.picks else 0.0
 
     lines.append("BEST PLAN")
-    lines.append("=" * 140)
+    lines.append("=" * 180)
     lines.append(f"Approx. survive-all-days score: {survival_estimate:.6f}")
     lines.append(f"Seed tiebreak total:           {best.seed_sum}")
     lines.append("")
@@ -211,10 +227,23 @@ def format_plan_table(
         f"{'Game Win If Avail':<19}"
         f"{'Pick Success':<14}"
         f"{'Survive Through Day':<20}"
+        f"{'Support':<10}"
+        f"{'ReachCnt':<10}"
+        f"{'NextCnt':<10}"
     )
-    lines.append("-" * 140)
+    lines.append("-" * 180)
 
-    for day, team, reach_day_prob, game_win_if_available, pick_success_prob, cumulative_survival in best.picks:
+    for (
+        day,
+        team,
+        reach_day_prob,
+        game_win_if_available,
+        pick_success_prob,
+        cumulative_survival,
+        support_sims,
+        reachable_sims,
+        next_support_sims,
+    ) in best.picks:
         lines.append(
             f"{day:<5}"
             f"{team:<24}"
@@ -223,11 +252,14 @@ def format_plan_table(
             f"{game_win_if_available:<19.4%}"
             f"{pick_success_prob:<14.4%}"
             f"{cumulative_survival:<20.4%}"
+            f"{support_sims:<10}"
+            f"{reachable_sims:<10}"
+            f"{next_support_sims:<10}"
         )
 
     lines.append("")
     lines.append("TOP FIRST-PICK ALTERNATIVES")
-    lines.append("=" * 140)
+    lines.append("=" * 180)
 
     for idx, (team, log_score, seed_sum) in enumerate(
         summarize_first_pick_options(plans, top_n=top_alternatives), start=1
