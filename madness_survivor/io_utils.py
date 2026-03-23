@@ -70,8 +70,17 @@ def load_used_teams(path: str | Path | None) -> Set[str]:
     if path is None:
         return set()
 
-    df = pd.read_csv(path)
-    if "team" not in df.columns:
-        raise ValueError("used_teams.csv must contain column: team")
+    with open(path) as f:
+        lines = f.read().strip().splitlines()
 
-    return set(df["team"].astype(str).tolist())
+    if not lines:
+        return set()
+
+    # Skip header line, strip whitespace and trailing commas
+    teams: Set[str] = set()
+    for line in lines[1:]:
+        name = line.strip().rstrip(",").strip()
+        if name:
+            teams.add(name)
+
+    return teams
