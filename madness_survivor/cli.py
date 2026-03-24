@@ -68,9 +68,20 @@ def main() -> None:
     setup_logging(args.log_level, args.log_file)
     logger.info("CLI logging is working")
 
-    teams = load_teams(Path(args.teams))
+    teams_path = Path(args.teams)
+    teams = load_teams(teams_path)
     games = load_games(Path(args.games))
-    used_teams = load_used_teams(args.used_teams)
+
+    used_teams_path = args.used_teams
+    if used_teams_path is None:
+        default_used = teams_path.parent / "used_teams.csv"
+        if default_used.exists():
+            used_teams_path = str(default_used)
+            logger.info("Auto-detected used teams file: %s", default_used)
+
+    used_teams = load_used_teams(used_teams_path)
+    if used_teams:
+        logger.info("Excluding previously used teams: %s", ", ".join(sorted(used_teams)))
 
     summary = run_simulations(
         teams=teams,
